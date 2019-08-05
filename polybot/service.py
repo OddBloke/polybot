@@ -1,7 +1,9 @@
 from io import BytesIO
+import functools
 import logging
 import textwrap
 import mimetypes
+from html.parser import HTMLParser
 from typing import List, Type, Union  # noqa
 from mastodon import Mastodon as MastodonClient
 import tweepy
@@ -183,6 +185,16 @@ class Twitter(Service):
             raise PostError(e)
 
 
+class TextReducingHTMLParser(HTMLParser):
+
+    def __init__(self):
+        super().__init__()
+        self.text = ''
+
+    def handle_data(self, data):
+        self.text += data
+
+
 class Mastodon(Service):
     name = "mastodon"
     max_length = 500
@@ -255,6 +267,26 @@ class Mastodon(Service):
         except Exception as e:
             # Mastodon.py exceptions are currently changing so catchall here for the moment
             raise PostError(e)
+
+    def get_mentions(self):
+        mentions = (n for n in self.mastodon.notifications() if n["type"] == "mention")
+        for mention in mentions:
+            status = mention["status"]
+            if status["spoiler_text"]:
+                self.log.info("Skipping status due to spoiler_text: %s", status["url"])
+                continue
+
+            callback = functools.partial(self.post, in_reply_to_id=status["id"])
+
+            parser = TextReducingHTMLParser()
+            parser.feed(status["content"])
+            status_text = parser.text
+            import ipdb;ipdb.set_trace()
+            yield (
+                callback,
+                status_text,
+                [recipient["acct"] for recipient in status["mentions"]],
+            )
 
 
 ALL_SERVICES = [Twitter, Mastodon]  # type: List[Type[Service]]

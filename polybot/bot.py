@@ -2,7 +2,7 @@ import configparser
 import pickle
 import logging
 import argparse
-from typing import List, Type, Dict, Union  # noqa
+from typing import Callable, List, Type, Dict, Union  # noqa
 from .service import Service, PostError, ALL_SERVICES  # noqa
 
 
@@ -65,6 +65,19 @@ class Bot(object):
         finally:
             self.save_state()
             self.log.info("Shut down")
+
+    def handle_mention(
+        self,
+        reply_callback: Callable,
+        status_content_type: str,
+        recipients: List[str],
+    ) -> None:
+        pass
+
+    def handle_mentions(self) -> None:
+        for service in self.services:
+            for args in service.get_mentions():
+                self.handle_mention(*args)
 
     def setup(self) -> None:
         print("Polybot setup")
